@@ -7,14 +7,14 @@ const sequelize = new Sequelize(process.env.DB_NAME, process.env.DB_USER, proces
   dialect: "mysql",
   port: process.env.DB_PORT,
   dialectOptions: {
-    connectTimeout: 60000,
+    connectTimeout: 150000,
     ssl: false
   },
   pool: {
     max: 5,
     min: 0,
-    acquire: 60000,
-    idle: 10000
+    acquire: 150000,
+    idle: 50000
   },
   logging: console.log
 });
