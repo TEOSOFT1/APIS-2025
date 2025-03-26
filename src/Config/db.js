@@ -1,25 +1,38 @@
 const { Sequelize, DataTypes } = require("sequelize");
 require("dotenv").config();
 
+// Opción 1: Conexión directa por IP
 const sequelize = new Sequelize(process.env.DB_NAME, process.env.DB_USER, process.env.DB_PASSWORD, {
   host: process.env.DB_HOST,
   dialect: "mysql",
   port: process.env.DB_PORT,
   dialectOptions: {
-    connectTimeout: 60000 // 60 segundos
+    connectTimeout: 60000,
+    ssl: false
   },
   pool: {
-    max: 10,
+    max: 5,
     min: 0,
     acquire: 60000,
     idle: 10000
-  }
+  },
+  logging: console.log
 });
 
-sequelize
-  .authenticate()
-  .then(() => console.log("✅ Conexión a MySQL exitosa con Sequelize"))
-  .catch((err) => console.error("❌ Error en la conexión:", err));
+// Función para probar la conexión
+const testConnection = async () => {
+  try {
+    await sequelize.authenticate();
+    console.log("✅ Conexión a MySQL exitosa con Sequelize");
+    return true;
+  } catch (err) {
+    console.error("❌ Error en la conexión:", err);
+    return false;
+  }
+};
+
+// Ejecutar la prueba de conexión
+testConnection();
 
 const db = {};
 db.sequelize = sequelize;
@@ -106,13 +119,11 @@ db.DetalleVentaServicio.belongsTo(db.Servicio, { as: "Servicio", foreignKey: "Id
 db.Mascota.hasMany(db.DetalleVentaServicio, { as: "DetallesVentaServicio", foreignKey: "IdMascota" });
 db.DetalleVentaServicio.belongsTo(db.Mascota, { as: "Mascota", foreignKey: "IdMascota" });
 
-
-
-
 // ✅ Sincronizar modelos con la base de datos
 sequelize
   .sync({ alter: false })
   .then(() => console.log("✅ Base de datos sincronizada correctamente"))
   .catch((err) => console.error("❌ Error al sincronizar la base de datos:", err));
 
+// Solo exportar db
 module.exports = db;
