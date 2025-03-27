@@ -1,4 +1,5 @@
 const { DataTypes } = require("sequelize");
+
 module.exports = (sequelize) => {
   const Servicio = sequelize.define("Servicio", {
     IdServicio: {
@@ -40,9 +41,14 @@ module.exports = (sequelize) => {
       allowNull: false,
       defaultValue: true,
     },
+    Foto: {
+      type: DataTypes.STRING, // Se almacena la URL de la imagen
+      allowNull: true,
+    },
   }, {
     tableName: "Servicios",
     timestamps: false,
   });
+
   return Servicio;
 };
