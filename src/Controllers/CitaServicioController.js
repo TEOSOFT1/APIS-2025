@@ -3,103 +3,134 @@ const CitaServicio = db.CitaServicio;
 const AgendamientoCita = db.AgendamientoCita;
 const Servicio = db.Servicio;
 
+// Obtener todas las relaciones cita-servicio
 exports.getAllCitaServicios = async (req, res) => {
   try {
     const citaServicios = await CitaServicio.findAll({
       include: [
-        { model: Servicio },
         { model: AgendamientoCita },
+        { model: Servicio },
       ],
     });
     res.status(200).json(citaServicios);
   } catch (error) {
-    console.error("❌ Error en getAllCitaServicios:", error);
-    res.status(500).json({
-      message: "Error obteniendo todas las relaciones de citas y servicios",
-      error: error.message,
-    });
+    console.error(error);
+    res.status(500).json({ message: "Error al obtener las relaciones cita-servicio", error: error.message });
   }
 };
 
+// Obtener una relación cita-servicio por ID
+exports.getCitaServicioById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const citaServicio = await CitaServicio.findByPk(id, {
+      include: [
+        { model: AgendamientoCita },
+        { model: Servicio },
+      ],
+    });
+
+    if (!citaServicio) {
+      return res.status(404).json({ message: "Relación cita-servicio no encontrada" });
+    }
+
+    res.status(200).json(citaServicio);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Error al obtener la relación cita-servicio", error: error.message });
+  }
+};
+
+// Obtener servicios por cita
 exports.getServiciosByCita = async (req, res) => {
   try {
-    const { idCita } = req.params;
-    const servicios = await CitaServicio.findAll({
-      where: { IdCita: idCita },
+    const { citaId } = req.params;
+    
+    // Verificar que la cita existe
+    const citaExiste = await AgendamientoCita.findByPk(citaId);
+    if (!citaExiste) {
+      return res.status(404).json({ message: "Cita no encontrada" });
+    }
+    
+    const citaServicios = await CitaServicio.findAll({
+      where: { IdCita: citaId },
       include: [{ model: Servicio }],
     });
 
-    if (!servicios.length) {
-      return res.status(404).json({ message: "No se encontraron servicios para esta cita" });
-    }
+    // Extraer solo los servicios
+    const servicios = citaServicios.map(cs => cs.Servicio);
 
     res.status(200).json(servicios);
   } catch (error) {
-    console.error("❌ Error en getServiciosByCita:", error);
-    res.status(500).json({ message: "Error obteniendo servicios de la cita", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al obtener los servicios de la cita", error: error.message });
   }
 };
 
-exports.getCitasByServicio = async (req, res) => {
-  try {
-    const { idServicio } = req.params;
-    const citas = await CitaServicio.findAll({
-      where: { IdServicio: idServicio },
-      include: [{ model: AgendamientoCita }],
-    });
-
-    if (!citas.length) {
-      return res.status(404).json({ message: "No se encontraron citas para este servicio" });
-    }
-
-    res.status(200).json(citas);
-  } catch (error) {
-    console.error("❌ Error en getCitasByServicio:", error);
-    res.status(500).json({ message: "Error obteniendo citas del servicio", error: error.message });
-  }
-};
-
-exports.addServicioToCita = async (req, res) => {
+// Crear una nueva relación cita-servicio
+exports.createCitaServicio = async (req, res) => {
   try {
     const { IdCita, IdServicio } = req.body;
 
+    // Validar campos requeridos
     if (!IdCita || !IdServicio) {
       return res.status(400).json({ message: "IdCita e IdServicio son obligatorios" });
     }
 
-    // Validar que la cita y el servicio existan antes de insertarlos
-    const cita = await AgendamientoCita.findByPk(IdCita);
-    const servicio = await Servicio.findByPk(IdServicio);
-
-    if (!cita) {
-      return res.status(404).json({ message: "La cita no existe" });
-    }
-    if (!servicio) {
-      return res.status(404).json({ message: "El servicio no existe" });
+    // Verificar que la cita existe
+    const citaExiste = await AgendamientoCita.findByPk(IdCita);
+    if (!citaExiste) {
+      return res.status(404).json({ message: "Cita no encontrada" });
     }
 
-    const nuevaRelacion = await CitaServicio.create({ IdCita, IdServicio });
+    // Verificar que el servicio existe
+    const servicioExiste = await Servicio.findByPk(IdServicio);
+    if (!servicioExiste) {
+      return res.status(404).json({ message: "Servicio no encontrado" });
+    }
 
-    res.status(201).json({ message: "Servicio agregado a la cita exitosamente", data: nuevaRelacion });
+    // Verificar si ya existe la relación
+    const relacionExistente = await CitaServicio.findOne({
+      where: { IdCita, IdServicio },
+    });
+
+    if (relacionExistente) {
+      return res.status(400).json({ message: "Esta relación cita-servicio ya existe" });
+    }
+
+    const nuevaCitaServicio = await CitaServicio.create({
+      IdCita,
+      IdServicio,
+    });
+
+    const citaServicioCreada = await CitaServicio.findByPk(nuevaCitaServicio.IdCitaServicio, {
+      include: [
+        { model: AgendamientoCita },
+        { model: Servicio },
+      ],
+    });
+
+    res.status(201).json({ message: "Relación cita-servicio creada exitosamente", data: citaServicioCreada });
   } catch (error) {
-    console.error("❌ Error en addServicioToCita:", error);
-    res.status(500).json({ message: "Error al agregar servicio a la cita", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al crear la relación cita-servicio", error: error.message });
   }
 };
 
-exports.removeServicioFromCita = async (req, res) => {
+// Eliminar una relación cita-servicio
+exports.deleteCitaServicio = async (req, res) => {
   try {
     const { id } = req.params;
-    const relacion = await CitaServicio.findByPk(id);
+    const citaServicio = await CitaServicio.findByPk(id);
 
-    if (!relacion) {
-      return res.status(404).json({ message: "Relación no encontrada" });
+    if (!citaServicio) {
+      return res.status(404).json({ message: "Relación cita-servicio no encontrada" });
     }
 
-    await relacion.destroy();
-    res.status(200).json({ message: "Servicio eliminado de la cita exitosamente" });
+    await citaServicio.destroy();
+    res.status(200).json({ message: "Relación cita-servicio eliminada exitosamente" });
   } catch (error) {
-    console.error("❌ Error en removeServicioFromCita:", error);
-    res.status(500).json({ message: "Error al eliminar servicio de la cita", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al eliminar la relación cita-servicio", error: error.message });
   }
 };

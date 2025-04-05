@@ -1,541 +1,587 @@
-const db = require("../Config/db")
-const Usuario = db.Usuario
-const Rol = db.Rol
-const jwt = require("jsonwebtoken")
-const { Op } = db.Sequelize
-const { handleError, createError } = require("../Utils/errorHandler")
-const { validateRequiredFields, isValidEmail } = require("../Utils/ValidationUtils")
-const { formatFullName } = require("../Utils/FormatUtils")
-const { generateToken } = require("../Utils/jwtUtils")
+// src/Controllers/UsuarioController.js
+const db = require("../Config/db");
+const bcrypt = require("bcrypt");
+const { handleError, createError } = require("../Utils/errorHandler");
+const { generateToken } = require("../Utils/jwt");
 
-// Generar token JWT
-const generarToken = (usuario) => {
-  return jwt.sign(
-    {
-      id: usuario.IdUsuario,
-      rol: usuario.IdRol,
-      correo: usuario.Correo,
-    },
-    process.env.JWT_SECRET || "secreto",
-    { expiresIn: "24h" },
-  )
+// Función para validar que una contraseña cumpla con los requisitos de seguridad
+function validarContraseñaSegura(contraseña) {
+  // Mínimo 8 caracteres
+  if (contraseña.length < 8) {
+    return {
+      valida: false,
+      mensaje: "La contraseña debe tener al menos 8 caracteres"
+    };
+  }
+  
+  // Debe contener al menos una letra
+  if (!/[a-zA-Z]/.test(contraseña)) {
+    return {
+      valida: false,
+      mensaje: "La contraseña debe contener al menos una letra"
+    };
+  }
+  
+  // Debe contener al menos un número
+  if (!/[0-9]/.test(contraseña)) {
+    return {
+      valida: false,
+      mensaje: "La contraseña debe contener al menos un número"
+    };
+  }
+  
+  // Debe contener al menos un carácter especial
+  if (!/[!@#$%^&*(),.?":{}|<>]/.test(contraseña)) {
+    return {
+      valida: false,
+      mensaje: "La contraseña debe contener al menos un carácter especial"
+    };
+  }
+  
+  return { valida: true };
 }
 
-// Obtener perfil del usuario actual
-exports.getProfile = async (req, res) => {
+// Login de usuario
+exports.login = async (req, res) => {
   try {
-    const userId = req.user.id;
-    console.log("ID de usuario desde token:", userId);
+    console.log('🔑 Intento de login con:', req.body);
+    
+    const { usuario, contraseña } = req.body;
 
-    const usuario = await Usuario.findByPk(userId, {
-      include: [
-        {
-          model: Rol,
-          attributes: ["IdRol", "NombreRol"],
-        },
-      ],
-      attributes: { exclude: ["Contraseña"] },
-    });
-
-    if (!usuario) {
-      return res.status(404).json({
-        message: "Usuario no encontrado",
+    if (!usuario || !contraseña) {
+      console.log('❌ Faltan campos obligatorios');
+      return res.status(400).json({
+        success: false,
+        message: "Usuario y contraseña son obligatorios"
       });
     }
 
-    res.status(200).json(usuario);
-  } catch (error) {
-    console.error("Error en getProfile:", error);
-    handleError(error, req, res, "Error al obtener el perfil del usuario");
-  }
-};
-// Iniciar sesión
-exports.login = async (req, res) => {
-  try {
-    const { usuario, contraseña } = req.body
-
-    // Validar campos obligatorios
-    if (!usuario || !contraseña) {
-      return res.status(400).json({
-        message: "Usuario y contraseña son obligatorios",
-      })
-    }
-
     // Buscar usuario por correo o documento
-    const usuarioEncontrado = await Usuario.findOne({
+    console.log('🔍 Buscando usuario:', usuario);
+    const user = await db.Usuario.findOne({
       where: {
-        [Op.or]: [{ Correo: usuario }, { Documento: usuario }],
+        [db.Sequelize.Op.or]: [
+          { Correo: usuario },
+          { Documento: usuario }
+        ]
       },
-      include: [
-        {
-          model: Rol,
-          attributes: ["IdRol", "NombreRol"],
-        },
-      ],
-    })
+      include: [{
+        model: db.Rol,
+        attributes: ['IdRol', 'NombreRol']
+      }]
+    });
 
-    if (!usuarioEncontrado) {
+    if (!user) {
+      console.log('❌ Usuario no encontrado');
       return res.status(401).json({
-        message: "Credenciales inválidas",
-      })
+        success: false,
+        message: "Credenciales inválidas"
+      });
     }
 
-    if (!usuarioEncontrado.Estado) {
-      return res.status(401).json({
-        message: "Usuario desactivado. Contacte al administrador",
-      })
-    }
-
-    // Si tienes un método comparePassword implementado, úsalo
-    // De lo contrario, compara directamente
-    let contraseñaValida = false;
-    if (typeof usuarioEncontrado.comparePassword === 'function') {
-      contraseñaValida = await usuarioEncontrado.comparePassword(contraseña);
+    console.log('✅ Usuario encontrado:', {
+      id: user.IdUsuario,
+      correo: user.Correo,
+      rol: user.Rol ? user.Rol.NombreRol : 'Sin rol'
+    });
+    
+    // Verificar si la contraseña está encriptada correctamente
+    if (!user.Contraseña || !user.Contraseña.startsWith('$2')) {
+      console.log('⚠️ La contraseña no está encriptada correctamente');
+      
+      // Encriptar la contraseña si no lo está
+      if (contraseña === user.Contraseña) {
+        console.log('✅ Contraseña en texto plano coincide, encriptando...');
+        const contraseñaHash = await bcrypt.hash(contraseña, 10);
+        await user.update({ Contraseña: contraseñaHash });
+        
+        // Continuar con el proceso de login
+      } else {
+        console.log('❌ Contraseña en texto plano no coincide');
+        return res.status(401).json({
+          success: false,
+          message: "Credenciales inválidas"
+        });
+      }
     } else {
-      contraseñaValida = usuarioEncontrado.Contraseña === contraseña;
+      // Verificar contraseña encriptada
+      console.log('🔐 Verificando contraseña encriptada...');
+      const contraseñaValida = await bcrypt.compare(contraseña, user.Contraseña);
+      
+      if (!contraseñaValida) {
+        console.log('❌ Contraseña incorrecta');
+        return res.status(401).json({
+          success: false,
+          message: "Credenciales inválidas"
+        });
+      }
+      
+      console.log('✅ Contraseña correcta');
     }
 
-    if (!contraseñaValida) {
-      return res.status(401).json({
-        message: "Credenciales inválidas",
-      })
-    }
+    // Generar token
+    console.log('🔑 Generando token...');
+    const token = generateToken({
+      id: user.IdUsuario,
+      rol: user.IdRol,
+      correo: user.Correo
+    });
 
-    const token = generarToken(usuarioEncontrado)
-
+    console.log('✅ Login exitoso');
     res.status(200).json({
+      success: true,
       message: "Inicio de sesión exitoso",
       token,
       usuario: {
-        id: usuarioEncontrado.IdUsuario,
-        nombre: usuarioEncontrado.Nombre,
-        apellido: usuarioEncontrado.Apellido,
-        correo: usuarioEncontrado.Correo,
-        documento: usuarioEncontrado.Documento,
-        rol: usuarioEncontrado.Rol ? usuarioEncontrado.Rol.NombreRol : null,
-      },
-    })
+        id: user.IdUsuario,
+        nombre: user.Nombre,
+        apellido: user.Apellido,
+        correo: user.Correo,
+        rol: user.Rol ? user.Rol.NombreRol : 'Sin rol'
+      }
+    });
   } catch (error) {
-    console.error(error)
-    res.status(500).json({
-      message: "Error al iniciar sesión",
-      error: error.message,
-    })
+    console.error('❌ Error en login:', error);
+    handleError(error, req, res, "Error en login de usuario");
   }
-}
+};
+
+// Crear usuario
+exports.createUsuario = async (req, res) => {
+  try {
+    const { IdRol, Documento, Correo, Contraseña, Nombre, Apellido, Telefono, Direccion } = req.body;
+
+    // Validar campos requeridos
+    if (!IdRol || !Documento || !Correo || !Contraseña || !Nombre || !Apellido) {
+      return res.status(400).json({
+        success: false,
+        message: "Todos los campos son requeridos excepto Telefono y Direccion"
+      });
+    }
+
+    // Validar que la contraseña sea segura
+    const validacionContraseña = validarContraseñaSegura(Contraseña);
+    if (!validacionContraseña.valida) {
+      return res.status(400).json({
+        success: false,
+        message: validacionContraseña.mensaje
+      });
+    }
+
+    // Verificar si ya existe un usuario con ese documento o correo
+    const usuarioExistente = await db.Usuario.findOne({
+      where: {
+        [db.Sequelize.Op.or]: [
+          { Documento: Documento },
+          { Correo: Correo }
+        ]
+      }
+    });
+
+    if (usuarioExistente) {
+      return res.status(400).json({
+        success: false,
+        message: "Ya existe un usuario con ese documento o correo electrónico"
+      });
+    }
+
+    // Verificar si el rol existe
+    const rol = await db.Rol.findByPk(IdRol);
+    if (!rol) {
+      return res.status(400).json({
+        success: false,
+        message: "El rol especificado no existe"
+      });
+    }
+
+    // Encriptar contraseña
+    const contraseñaHash = await bcrypt.hash(Contraseña, 10);
+
+    // Crear usuario
+    const usuario = await db.Usuario.create({
+      IdRol,
+      Documento,
+      Correo,
+      Contraseña: contraseñaHash,
+      Nombre,
+      Apellido,
+      Telefono: Telefono || null,
+      Direccion: Direccion || null,
+      Estado: true
+    });
+
+    // Excluir la contraseña de la respuesta
+    const usuarioResponse = {
+      IdUsuario: usuario.IdUsuario,
+      IdRol: usuario.IdRol,
+      Documento: usuario.Documento,
+      Correo: usuario.Correo,
+      Nombre: usuario.Nombre,
+      Apellido: usuario.Apellido,
+      Telefono: usuario.Telefono,
+      Direccion: usuario.Direccion,
+      Estado: usuario.Estado
+    };
+
+    res.status(201).json({
+      success: true,
+      message: "Usuario creado exitosamente",
+      data: usuarioResponse
+    });
+  } catch (error) {
+    handleError(error, req, res, "Error al crear usuario");
+  }
+};
 
 // Obtener todos los usuarios
 exports.getAllUsuarios = async (req, res) => {
   try {
-    const usuarios = await Usuario.findAll({
-      include: [
-        {
-          model: Rol,
-          attributes: ["IdRol", "NombreRol"],
-        },
-      ],
-      attributes: { exclude: ["Contraseña"] },
-    })
-    res.status(200).json(usuarios)
+    const usuarios = await db.Usuario.findAll({
+      attributes: { exclude: ['Contraseña'] },
+      include: [{
+        model: db.Rol,
+        attributes: ['NombreRol']
+      }]
+    });
+
+    res.status(200).json({
+      success: true,
+      data: usuarios
+    });
   } catch (error) {
-    handleError(error, req, res, "Error al obtener los usuarios")
+    handleError(error, req, res, "Error al obtener usuarios");
   }
-}
-
-// Obtener perfil del usuario actual
-exports.getProfile = async (req, res) => {
-  try {
-    const userId = req.user.id
-
-    const usuario = await Usuario.findByPk(userId, {
-      include: [
-        {
-          model: Rol,
-          attributes: ["IdRol", "NombreRol"],
-        },
-      ],
-      attributes: { exclude: ["Contraseña"] },
-    })
-
-    if (!usuario) {
-      return res.status(404).json({
-        message: "Usuario no encontrado",
-      })
-    }
-
-    res.status(200).json(usuario)
-  } catch (error) {
-    handleError(error, req, res, "Error al obtener el perfil del usuario")
-  }
-}
-
-// Buscar usuarios
-exports.searchUsuarios = async (req, res) => {
-  try {
-    const { query } = req.query
-
-    if (!query) {
-      return res.status(400).json({
-        message: "Se requiere un término de búsqueda",
-      })
-    }
-
-    const usuarios = await Usuario.findAll({
-      where: {
-        [Op.or]: [
-          { Nombre: { [Op.like]: `%${query}%` } },
-          { Apellido: { [Op.like]: `%${query}%` } },
-          { Correo: { [Op.like]: `%${query}%` } },
-          { Documento: { [Op.like]: `%${query}%` } },
-        ],
-      },
-      include: [
-        {
-          model: Rol,
-          attributes: ["IdRol", "NombreRol"],
-        },
-      ],
-      attributes: { exclude: ["Contraseña"] },
-    })
-
-    res.status(200).json(usuarios)
-  } catch (error) {
-    handleError(error, req, res, "Error al buscar usuarios")
-  }
-}
+};
 
 // Obtener usuario por ID
 exports.getUsuarioById = async (req, res) => {
   try {
-    const { id } = req.params
-
-    const usuario = await Usuario.findByPk(id, {
-      include: [
-        {
-          model: Rol,
-          attributes: ["IdRol", "NombreRol"],
-        },
-      ],
-      attributes: { exclude: ["Contraseña"] },
-    })
+    const usuario = await db.Usuario.findByPk(req.params.id, {
+      attributes: { exclude: ['Contraseña'] },
+      include: [{
+        model: db.Rol,
+        attributes: ['IdRol', 'NombreRol']
+      }]
+    });
 
     if (!usuario) {
       return res.status(404).json({
-        message: "Usuario no encontrado",
-      })
+        success: false,
+        message: "Usuario no encontrado"
+      });
     }
 
-    res.status(200).json(usuario)
+    res.status(200).json({
+      success: true,
+      data: usuario
+    });
   } catch (error) {
-    handleError(error, req, res, "Error al obtener el usuario")
+    handleError(error, req, res, "Error al obtener usuario");
   }
-}
+};
 
-// Crear un nuevo usuario
-exports.createUsuario = async (req, res) => {
-  try {
-    const { IdRol, Nombre, Apellido, Correo, Telefono, Direccion, Documento, Contraseña, Estado } = req.body
-
-    // Validar campos requeridos
-    const requiredFields = ["IdRol", "Nombre", "Apellido", "Correo", "Telefono", "Direccion", "Documento", "Contraseña"]
-    const validation = validateRequiredFields(req.body, requiredFields)
-
-    if (!validation.valid) {
-      return res.status(400).json({
-        message: "Campos requeridos faltantes",
-        fields: validation.missingFields,
-      })
-    }
-
-    // Validar correo electrónico
-    if (!isValidEmail(Correo)) {
-      return res.status(400).json({
-        message: "El formato del correo electrónico no es válido",
-      })
-    }
-
-    const rolExiste = await Rol.findByPk(IdRol)
-    if (!rolExiste) {
-      return res.status(404).json({
-        message: "El rol especificado no existe",
-      })
-    }
-
-    const usuarioExistente = await Usuario.findOne({
-      where: {
-        [Op.or]: [{ Correo }, { Documento }],
-      },
-    })
-
-    if (usuarioExistente) {
-      return res.status(400).json({
-        message: "Ya existe un usuario con el mismo correo o documento",
-      })
-    }
-
-    const nuevoUsuario = await Usuario.create({
-      IdRol,
-      Nombre,
-      Apellido,
-      Correo,
-      Telefono,
-      Direccion,
-      Documento,
-      Contraseña,
-      Estado: Estado !== undefined ? Estado : true,
-    })
-
-    const usuarioCreado = await Usuario.findByPk(nuevoUsuario.IdUsuario, {
-      attributes: { exclude: ["Contraseña"] },
-      include: [
-        {
-          model: Rol,
-          attributes: ["IdRol", "NombreRol"],
-        },
-      ],
-    })
-
-    res.status(201).json({
-      message: "Usuario creado exitosamente",
-      data: usuarioCreado,
-    })
-  } catch (error) {
-    handleError(error, req, res, "Error al crear el usuario")
-  }
-}
-
-// Actualizar un usuario
+// Actualizar usuario
 exports.updateUsuario = async (req, res) => {
   try {
-    const { id } = req.params
-    const { IdRol, Nombre, Apellido, Correo, Telefono, Direccion, Documento, Estado } = req.body
+    const { IdRol, Nombre, Apellido, Telefono, Direccion, Estado } = req.body;
 
-    const usuario = await Usuario.findByPk(id)
-
+    // Buscar el usuario
+    const usuario = await db.Usuario.findByPk(req.params.id);
+    
     if (!usuario) {
       return res.status(404).json({
-        message: "Usuario no encontrado",
-      })
+        success: false,
+        message: "Usuario no encontrado"
+      });
     }
 
+    // Si se proporciona un nuevo rol, verificar que exista
     if (IdRol) {
-      const rolExiste = await Rol.findByPk(IdRol)
-      if (!rolExiste) {
-        return res.status(404).json({
-          message: "El rol especificado no existe",
-        })
-      }
-    }
-
-    if (Correo || Documento) {
-      const usuarioExistente = await Usuario.findOne({
-        where: {
-          [Op.or]: [Correo ? { Correo } : null, Documento ? { Documento } : null].filter(Boolean),
-          IdUsuario: { [Op.ne]: id },
-        },
-      })
-
-      if (usuarioExistente) {
+      const rol = await db.Rol.findByPk(IdRol);
+      if (!rol) {
         return res.status(400).json({
-          message: "Ya existe otro usuario con el mismo correo o documento",
-        })
+          success: false,
+          message: "El rol especificado no existe"
+        });
       }
     }
 
+    // Actualizar campos
     await usuario.update({
       IdRol: IdRol || usuario.IdRol,
       Nombre: Nombre || usuario.Nombre,
       Apellido: Apellido || usuario.Apellido,
-      Correo: Correo || usuario.Correo,
-      Telefono: Telefono || usuario.Telefono,
-      Direccion: Direccion || usuario.Direccion,
-      Documento: Documento || usuario.Documento,
-      Estado: Estado !== undefined ? Estado : usuario.Estado,
-    })
+      Telefono: Telefono !== undefined ? Telefono : usuario.Telefono,
+      Direccion: Direccion !== undefined ? Direccion : usuario.Direccion,
+      Estado: Estado !== undefined ? Estado : usuario.Estado
+    });
+
+    // Excluir la contraseña de la respuesta
+    const usuarioResponse = {
+      IdUsuario: usuario.IdUsuario,
+      IdRol: usuario.IdRol,
+      Documento: usuario.Documento,
+      Correo: usuario.Correo,
+      Nombre: usuario.Nombre,
+      Apellido: usuario.Apellido,
+      Telefono: usuario.Telefono,
+      Direccion: usuario.Direccion,
+      Estado: usuario.Estado
+    };
 
     res.status(200).json({
+      success: true,
       message: "Usuario actualizado exitosamente",
-    })
+      data: usuarioResponse
+    });
   } catch (error) {
-    handleError(error, req, res, "Error al actualizar el usuario")
+    handleError(error, req, res, "Error al actualizar usuario");
   }
-}
-
-// Cambiar estado del usuario (activar/desactivar)
-exports.toggleUsuarioStatus = async (req, res) => {
-  try {
-    const { id } = req.params
-    const usuario = await Usuario.findByPk(id)
-
-    if (!usuario) {
-      return res.status(404).json({
-        message: "Usuario no encontrado",
-      })
-    }
-
-    await usuario.update({
-      Estado: !usuario.Estado,
-    })
-
-    res.status(200).json({
-      message: `Usuario ${usuario.Estado ? "activado" : "desactivado"} exitosamente`,
-      estado: usuario.Estado,
-    })
-  } catch (error) {
-    handleError(error, req, res, "Error al cambiar el estado del usuario")
-  }
-}
+};
 
 // Cambiar contraseña
 exports.changePassword = async (req, res) => {
   try {
-    const { id } = req.params
-    const { contraseñaActual, nuevaContraseña } = req.body
-
-    // Validar que se proporcionaron ambas contraseñas
+    const { contraseñaActual, nuevaContraseña } = req.body;
+    
     if (!contraseñaActual || !nuevaContraseña) {
       return res.status(400).json({
-        message: "La contraseña actual y la nueva contraseña son requeridas",
-      })
-    }
-
-    const usuario = await Usuario.findByPk(id)
-
-    if (!usuario) {
-      return res.status(404).json({
-        message: "Usuario no encontrado",
-      })
-    }
-
-    // Verificar que el usuario que hace la solicitud sea el mismo usuario o un administrador
-    if (req.user.id !== Number.parseInt(id) && req.user.rol !== 1) {
-      return res.status(403).json({
-        message: "No tienes permiso para cambiar la contraseña de este usuario",
-      })
-    }
-
-    // Verificar la contraseña actual
-    let contraseñaValida = false;
-    if (typeof usuario.comparePassword === 'function') {
-      contraseñaValida = await usuario.comparePassword(contraseñaActual);
-    } else {
-      contraseñaValida = usuario.Contraseña === contraseñaActual;
+        success: false,
+        message: "Contraseña actual y nueva son requeridas"
+      });
     }
     
+    // Validar que la nueva contraseña sea segura
+    const validacionContraseña = validarContraseñaSegura(nuevaContraseña);
+    if (!validacionContraseña.valida) {
+      return res.status(400).json({
+        success: false,
+        message: validacionContraseña.mensaje
+      });
+    }
+    
+    // Buscar usuario por ID
+    const usuario = await db.Usuario.findByPk(req.user.id);
+
+    if (!usuario) {
+      return res.status(404).json({
+        success: false,
+        message: "Usuario no encontrado"
+      });
+    }
+
+    // Verificar contraseña actual
+    const contraseñaValida = await bcrypt.compare(contraseñaActual, usuario.Contraseña);
     if (!contraseñaValida) {
       return res.status(401).json({
-        message: "La contraseña actual es incorrecta",
-      })
+        success: false,
+        message: "Contraseña actual incorrecta"
+      });
     }
 
-    // Actualizar la contraseña
-    await usuario.update({
-      Contraseña: nuevaContraseña,
-    })
+    // Encriptar nueva contraseña
+    const contraseñaHash = await bcrypt.hash(nuevaContraseña, 10);
+
+    // Actualizar contraseña
+    await usuario.update({ Contraseña: contraseñaHash });
 
     res.status(200).json({
-      message: "Contraseña actualizada exitosamente",
-    })
+      success: true,
+      message: "Contraseña actualizada correctamente"
+    });
   } catch (error) {
-    handleError(error, req, res, "Error al cambiar la contraseña")
+    handleError(error, req, res, "Error al cambiar contraseña");
   }
-}
+};
 
-// Eliminar un usuario
+// Eliminar usuario
 exports.deleteUsuario = async (req, res) => {
   try {
-    const { id } = req.params
-    const usuario = await Usuario.findByPk(id)
-
+    const usuario = await db.Usuario.findByPk(req.params.id);
+    
     if (!usuario) {
       return res.status(404).json({
-        message: "Usuario no encontrado",
-      })
+        success: false,
+        message: "Usuario no encontrado"
+      });
     }
+    
+    await usuario.destroy();
 
-    await usuario.destroy()
     res.status(200).json({
-      message: "Usuario eliminado exitosamente",
-    })
+      success: true,
+      message: "Usuario eliminado exitosamente"
+    });
   } catch (error) {
-    handleError(error, req, res, "Error al eliminar el usuario")
+    handleError(error, req, res, "Error al eliminar usuario");
   }
-}
+};
 
-// Cerrar sesión
-exports.logout = (req, res) => {
-  try {
-    // En el caso de JWT, no es necesario hacer nada para cerrar sesión en el backend,
-    // solo eliminar el token del cliente.
-    res.status(200).json({
-      message: "Sesión cerrada exitosamente",
-    })
-  } catch (error) {
-    handleError(error, req, res, "Error al cerrar sesión")
-  }
-}
-
-// Recuperar contraseña (Enviar correo con nueva contraseña temporal)
+// Recuperar contraseña
 exports.recoverPassword = async (req, res) => {
   try {
-    const { correo } = req.body
+    const { correo } = req.body;
 
     if (!correo) {
       return res.status(400).json({
-        message: "El correo es obligatorio",
-      })
+        success: false,
+        message: "El correo es obligatorio"
+      });
     }
 
-    const usuario = await Usuario.findOne({ where: { Correo: correo } })
+    // Buscar usuario por correo
+    const usuario = await db.Usuario.findOne({
+      where: { Correo: correo }
+    });
+
     if (!usuario) {
-      return res.status(404).json({
-        message: "No se encontró un usuario con ese correo",
-      })
+      // Por seguridad, no informamos si el correo existe o no
+      return res.status(200).json({
+        success: true,
+        message: "Si el correo existe, se han enviado instrucciones para recuperar la contraseña"
+      });
     }
 
-    // Generar nueva contraseña temporal
-    const nuevaContraseña = Math.random().toString(36).slice(-8) // Generar una contraseña aleatoria de 8 caracteres
+    // Generar nueva contraseña temporal que cumpla con los requisitos
+    const caracteres = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    const caracteresEspeciales = "!@#$%^&*(),.?\":{}|<>";
+    
+    let nuevaContraseña = "";
+    
+    // Asegurar al menos una letra mayúscula
+    nuevaContraseña += caracteres.charAt(Math.floor(Math.random() * 26));
+    
+    // Asegurar al menos una letra minúscula
+    nuevaContraseña += caracteres.charAt(26 + Math.floor(Math.random() * 26));
+    
+    // Asegurar al menos un número
+    nuevaContraseña += caracteres.charAt(52 + Math.floor(Math.random() * 10));
+    
+    // Asegurar al menos un carácter especial
+    nuevaContraseña += caracteresEspeciales.charAt(Math.floor(Math.random() * caracteresEspeciales.length));
+    
+    // Completar hasta 8 caracteres
+    for (let i = nuevaContraseña.length; i < 8; i++) {
+      nuevaContraseña += caracteres.charAt(Math.floor(Math.random() * caracteres.length));
+    }
+    
+    // Mezclar los caracteres
+    nuevaContraseña = nuevaContraseña.split('').sort(() => 0.5 - Math.random()).join('');
+
+    // Encriptar nueva contraseña
+    const contraseñaHash = await bcrypt.hash(nuevaContraseña, 10);
 
     // Actualizar la contraseña del usuario
-    await usuario.update({ Contraseña: nuevaContraseña })
+    await usuario.update({ Contraseña: contraseñaHash });
 
-    // Enviar correo con la nueva contraseña (suponiendo que tienes configurado un sistema de correos)
-    // Aquí puedes integrar tu servicio de envío de correos
+    // En producción, aquí enviarías el correo con la nueva contraseña
+    // mailer.sendPasswordReset(correo, nuevaContraseña);
 
     res.status(200).json({
-      message: "Nueva contraseña generada y enviada por correo",
-      nuevaContraseña,
-    })
+      success: true,
+      message: "Se ha enviado una nueva contraseña a tu correo",
+      // En desarrollo puedes mostrar la contraseña, en producción eliminar esta línea
+      nuevaContraseña: process.env.NODE_ENV === 'development' ? nuevaContraseña : undefined
+    });
   } catch (error) {
-    handleError(error, req, res, "Error al recuperar la contraseña")
+    handleError(error, req, res, "Error al recuperar contraseña");
   }
-}
+};
 
-// Olvidar contraseña (Por ejemplo, recibir un enlace para restablecer la contraseña)
+// Obtener perfil del usuario autenticado
+exports.getProfile = async (req, res) => {
+  try {
+    const usuario = await db.Usuario.findByPk(req.user.id, {
+      attributes: { exclude: ['Contraseña'] },
+      include: [{
+        model: db.Rol,
+        attributes: ['IdRol', 'NombreRol']
+      }]
+    });
+
+    if (!usuario) {
+      return res.status(404).json({
+        success: false,
+        message: "Usuario no encontrado"
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: usuario
+    });
+  } catch (error) {
+    handleError(error, req, res, "Error al obtener perfil de usuario");
+  }
+};
+
+// Esta función es similar a recoverPassword pero puede tener lógica diferente
 exports.forgotPassword = async (req, res) => {
   try {
-    const { correo } = req.body
+    const { correo } = req.body;
 
     if (!correo) {
       return res.status(400).json({
-        message: "El correo es obligatorio",
-      })
+        success: false,
+        message: "El correo es obligatorio"
+      });
     }
 
-    const usuario = await Usuario.findOne({ where: { Correo: correo } })
+    // Buscar usuario por correo
+    const usuario = await db.Usuario.findOne({
+      where: { Correo: correo }
+    });
+
     if (!usuario) {
-      return res.status(404).json({
-        message: "No se encontró un usuario con ese correo",
-      })
+      // Por seguridad, no informamos si el correo existe o no
+      return res.status(200).json({
+        success: true,
+        message: "Si el correo existe, se han enviado instrucciones para recuperar la contraseña"
+      });
     }
 
-    // Enviar enlace de recuperación de contraseña por correo (implementarlo según tu lógica)
-    // Aquí puedes enviar un enlace único para que el usuario restablezca su contraseña.
+    // Generar nueva contraseña temporal que cumpla con los requisitos
+    const caracteres = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    const caracteresEspeciales = "!@#$%^&*(),.?\":{}|<>";
+    
+    let nuevaContraseña = "";
+    
+    // Asegurar al menos una letra mayúscula
+    nuevaContraseña += caracteres.charAt(Math.floor(Math.random() * 26));
+    
+    // Asegurar al menos una letra minúscula
+    nuevaContraseña += caracteres.charAt(26 + Math.floor(Math.random() * 26));
+    
+    // Asegurar al menos un número
+    nuevaContraseña += caracteres.charAt(52 + Math.floor(Math.random() * 10));
+    
+    // Asegurar al menos un carácter especial
+    nuevaContraseña += caracteresEspeciales.charAt(Math.floor(Math.random() * caracteresEspeciales.length));
+    
+    // Completar hasta 8 caracteres
+    for (let i = nuevaContraseña.length; i < 8; i++) {
+      nuevaContraseña += caracteres.charAt(Math.floor(Math.random() * caracteres.length));
+    }
+    
+    // Mezclar los caracteres
+    nuevaContraseña = nuevaContraseña.split('').sort(() => 0.5 - Math.random()).join('');
+
+    // Encriptar nueva contraseña
+    const contraseñaHash = await bcrypt.hash(nuevaContraseña, 10);
+
+    // Actualizar la contraseña del usuario
+    await usuario.update({ Contraseña: contraseñaHash });
+
+    // En producción, aquí enviarías el correo con la nueva contraseña
+    // mailer.sendPasswordReset(correo, nuevaContraseña);
 
     res.status(200).json({
-      message: "Enlace de recuperación de contraseña enviado por correo",
-    })
+      success: true,
+      message: "Se ha enviado una nueva contraseña a tu correo",
+      // En desarrollo puedes mostrar la contraseña, en producción eliminar esta línea
+      nuevaContraseña: process.env.NODE_ENV === 'development' ? nuevaContraseña : undefined
+    });
   } catch (error) {
-    handleError(error, req, res, "Error al enviar el enlace de recuperación")
+    handleError(error, req, res, "Error al recuperar contraseña");
   }
-}
+};

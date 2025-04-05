@@ -1,6 +1,4 @@
-const { DataTypes } = require("sequelize");
-
-module.exports = (sequelize) => {
+module.exports = (sequelize, DataTypes) => {
   const Compra = sequelize.define(
     "Compra",
     {
@@ -12,10 +10,6 @@ module.exports = (sequelize) => {
       IdProveedor: {
         type: DataTypes.INTEGER,
         allowNull: false,
-        references: {
-          model: "Proveedores",
-          key: "IdProveedor",
-        },
       },
       FechaCompra: {
         type: DataTypes.DATE,
@@ -34,15 +28,15 @@ module.exports = (sequelize) => {
         allowNull: false,
       },
       Estado: {
-        type: DataTypes.ENUM("Efectiva", "Cancelada"),
+        type: DataTypes.ENUM('Efectiva', 'Cancelada'),
         allowNull: false,
-        defaultValue: "Efectiva",
+        defaultValue: 'Efectiva',
       },
     },
     {
       tableName: "Compras",
       timestamps: false,
-    },
+    }
   );
 
   return Compra;

@@ -1,6 +1,4 @@
-const { DataTypes } = require("sequelize");
-
-module.exports = (sequelize) => {
+module.exports = (sequelize, DataTypes) => {
   const Mascota = sequelize.define(
     "Mascota",
     {
@@ -9,17 +7,13 @@ module.exports = (sequelize) => {
         primaryKey: true,
         autoIncrement: true,
       },
-      IdCliente: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        references: {
-          model: "Clientes",
-          key: "IdCliente",
-        },
-      },
       Nombre: {
         type: DataTypes.STRING(100),
         allowNull: false,
+      },
+      Foto: {
+        type: DataTypes.STRING(255),
+        allowNull: true,
       },
       Especie: {
         type: DataTypes.STRING(50),
@@ -30,7 +24,7 @@ module.exports = (sequelize) => {
         allowNull: false,
       },
       Tamaño: {
-        type: DataTypes.ENUM("Pequeño", "Grande"),
+        type: DataTypes.ENUM('Pequeño', 'Grande'),
         allowNull: false,
       },
       FechaNacimiento: {

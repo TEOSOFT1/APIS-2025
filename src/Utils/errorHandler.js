@@ -1,47 +1,41 @@
-// Función para manejar errores de forma centralizada
-const handleError = (error, req, res, customMessage = "Error en la operación") => {
-    console.error(`❌ ${customMessage}:`, error)
+// src/Utils/errorHandler.js
+// Función para manejar errores en controladores
+exports.handleError = (error, req, res, customMessage = "Error en el servidor") => {
+  console.error(`❌ ${customMessage}:`, error);
   
-    // Determinar el código de estado HTTP apropiado
-    let statusCode = 500
-    let message = "Error interno del servidor"
-  
-    // Errores específicos de Sequelize
-    if (error.name === "SequelizeValidationError" || error.name === "SequelizeUniqueConstraintError") {
-      statusCode = 400
-      message = error.errors.map((e) => e.message).join(", ")
-    }
-  
-    // Errores de autenticación
-    else if (error.name === "JsonWebTokenError" || error.name === "TokenExpiredError") {
-      statusCode = 401
-      message = error.name === "TokenExpiredError" ? "Token expirado" : "Token inválido"
-    }
-  
-    // Errores personalizados
-    else if (error.statusCode) {
-      statusCode = error.statusCode
-      message = error.message
-    }
-  
-    // Responder con el error
-    res.status(statusCode).json({
+  // Errores de validación de Sequelize
+  if (error.name === "SequelizeValidationError" || error.name === "SequelizeUniqueConstraintError") {
+    const errors = error.errors.map(err => ({
+      field: err.path,
+      message: err.message
+    }));
+    
+    return res.status(400).json({
       success: false,
-      message: message,
-      error: process.env.NODE_ENV === "development" ? error.message : undefined,
-    })
+      message: "Error de validación",
+      errors
+    });
   }
   
-  // Crear un error personalizado con código de estado
-  const createError = (message, statusCode = 500) => {
-    const error = new Error(message)
-    error.statusCode = statusCode
-    return error
+  // Errores personalizados
+  if (error.statusCode) {
+    return res.status(error.statusCode).json({
+      success: false,
+      message: error.message
+    });
   }
   
-  module.exports = {
-    handleError,
-    createError,
-  }
-  
-  
+  // Error de servidor por defecto
+  return res.status(500).json({
+    success: false,
+    message: customMessage,
+    error: process.env.NODE_ENV === "development" ? error.message : undefined
+  });
+};
+
+// Función para crear errores personalizados
+exports.createError = (message, statusCode = 500) => {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+};

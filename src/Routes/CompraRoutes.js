@@ -1,15 +1,14 @@
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const compraController = require("../Controllers/CompraController");
+const compraController = require('../Controllers/CompraController');
 
-// ✅ Rutas de compras
-router.get("/", compraController.getAllCompras);
-router.get("/proveedor/:idProveedor", compraController.getComprasByProveedor);
-router.get("/:id", compraController.getCompraById);
-router.get("/:id/detalles", compraController.getDetallesCompra);
-router.post("/", compraController.createCompra);
-router.put("/:id", compraController.updateCompra);  // 🔹 Verifica que esta línea esté presente
-router.patch("/:id/estado", compraController.updateEstadoCompra);
+// Rutas para compras
+router.get('/', compraController.getAllCompras);
+router.get('/por-fecha', compraController.getComprasByFecha); // Ruta específica para búsqueda por fecha
+router.get('/proveedor/:proveedorId', compraController.getComprasByProveedor);
+router.get('/:id', compraController.getCompraById);
+router.post('/', compraController.createCompra);
+router.patch('/:id/estado', compraController.updateCompraEstado);
+router.delete('/:id', compraController.deleteCompra);
 
 module.exports = router;
-

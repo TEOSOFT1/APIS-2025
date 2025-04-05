@@ -1,6 +1,4 @@
-const { DataTypes } = require("sequelize");
-
-module.exports = (sequelize) => {
+module.exports = (sequelize, DataTypes) => {
   const DetalleVenta = sequelize.define(
     "DetalleVenta",
     {
@@ -12,22 +10,18 @@ module.exports = (sequelize) => {
       IdVenta: {
         type: DataTypes.INTEGER,
         allowNull: false,
-        references: { model: "Ventas", key: "IdVenta" },
       },
       IdProducto: {
         type: DataTypes.INTEGER,
         allowNull: false,
-        references: { model: "Productos", key: "IdProducto" },
       },
       Cantidad: {
         type: DataTypes.INTEGER,
         allowNull: false,
-        validate: { min: 1 },
       },
       PrecioUnitario: {
         type: DataTypes.DECIMAL(10, 2),
         allowNull: false,
-        validate: { min: 0 },
       },
       Subtotal: {
         type: DataTypes.DECIMAL(10, 2),
@@ -48,11 +42,9 @@ module.exports = (sequelize) => {
       timestamps: false,
     }
   );
-
-  // ✅ Definir relaciones dentro del modelo
-  DetalleVenta.associate = (models) => {
-    DetalleVenta.belongsTo(models.Venta, { as: "Venta", foreignKey: "IdVenta" });
-    DetalleVenta.belongsTo(models.Producto, { as: "Producto", foreignKey: "IdProducto" });
+  DetalleVenta.associate = function(models) {
+    DetalleVenta.belongsTo(models.Venta, { foreignKey: 'IdVenta' });
+    DetalleVenta.belongsTo(models.Producto, { as: 'Producto', foreignKey: 'IdProducto' });
   };
 
   return DetalleVenta;

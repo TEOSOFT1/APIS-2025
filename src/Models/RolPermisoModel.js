@@ -10,18 +10,10 @@ module.exports = (sequelize, DataTypes) => {
       IdRol: {
         type: DataTypes.INTEGER,
         allowNull: false,
-        references: {
-          model: "Roles",
-          key: "IdRol",
-        },
       },
       IdPermiso: {
         type: DataTypes.INTEGER,
         allowNull: false,
-        references: {
-          model: "Permisos",
-          key: "IdPermiso",
-        },
       },
       FechaCreacion: {
         type: DataTypes.DATE,
@@ -36,9 +28,13 @@ module.exports = (sequelize, DataTypes) => {
     },
     {
       tableName: "Rol_Permiso",
-      timestamps: true, // Habilita el manejo automático de timestamps
-      createdAt: "FechaCreacion", // Asocia el campo createdAt con FechaCreacion
-      updatedAt: "FechaActualizacion", // Asocia el campo updatedAt con FechaActualizacion
+      timestamps: false,
+      indexes: [
+        {
+          unique: true,
+          fields: ["IdRol", "IdPermiso"],
+        },
+      ],
     }
   );
 

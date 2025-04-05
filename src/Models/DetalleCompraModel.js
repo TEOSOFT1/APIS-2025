@@ -2,7 +2,7 @@ module.exports = (sequelize, DataTypes) => {
   const DetalleCompra = sequelize.define(
     "DetalleCompra",
     {
-      IdDetalleCompra: {
+      IdDetalleCompras: {
         type: DataTypes.INTEGER,
         primaryKey: true,
         autoIncrement: true,
@@ -10,18 +10,10 @@ module.exports = (sequelize, DataTypes) => {
       IdProducto: {
         type: DataTypes.INTEGER,
         allowNull: false,
-        references: {
-          model: "Productos",
-          key: "IdProducto",
-        },
       },
       IdCompra: {
         type: DataTypes.INTEGER,
         allowNull: false,
-        references: {
-          model: "Compras",
-          key: "IdCompra",
-        },
       },
       Cantidad: {
         type: DataTypes.INTEGER,
@@ -35,11 +27,11 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.DECIMAL(10, 2),
         allowNull: false,
       },
-      IvaUnitario: {
+      SubtotalConIva: {
         type: DataTypes.DECIMAL(10, 2),
         allowNull: false,
       },
-      SubtotalConIva: {
+      IvaUnitario: {
         type: DataTypes.DECIMAL(10, 2),
         allowNull: false,
       },

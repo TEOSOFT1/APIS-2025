@@ -1,6 +1,4 @@
-const { DataTypes } = require("sequelize");
-
-module.exports = (sequelize) => {
+module.exports = (sequelize, DataTypes) => {
   const NotificacionProducto = sequelize.define(
     "NotificacionProducto",
     {
@@ -12,10 +10,6 @@ module.exports = (sequelize) => {
       IdProducto: {
         type: DataTypes.INTEGER,
         allowNull: false,
-        references: {
-          model: "Productos",
-          key: "IdProducto",
-        },
       },
       FechaNotificacion: {
         type: DataTypes.DATE,
@@ -23,7 +17,7 @@ module.exports = (sequelize) => {
         defaultValue: DataTypes.NOW,
       },
       TipoNotificacion: {
-        type: DataTypes.ENUM("Vencimiento", "StockBajo"),
+        type: DataTypes.ENUM('Vencimiento', 'StockBajo'),
         allowNull: false,
       },
       Mensaje: {
@@ -31,15 +25,15 @@ module.exports = (sequelize) => {
         allowNull: false,
       },
       Estado: {
-        type: DataTypes.ENUM("Pendiente", "Vista", "Resuelta"),
+        type: DataTypes.ENUM('Pendiente', 'Vista', 'Resuelta'),
         allowNull: false,
-        defaultValue: "Pendiente",
+        defaultValue: 'Pendiente',
       },
     },
     {
       tableName: "Notificaciones_Productos",
       timestamps: false,
-    },
+    }
   );
 
   return NotificacionProducto;

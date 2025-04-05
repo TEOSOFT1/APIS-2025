@@ -12,7 +12,6 @@ exports.getAllTiposServicio = async (req, res) => {
   }
 };
 
-
 // Obtener un tipo de servicio por ID
 exports.getTipoServicioById = async (req, res) => {
   try {
@@ -33,13 +32,18 @@ exports.getTipoServicioById = async (req, res) => {
 // Crear un nuevo tipo de servicio
 exports.createTipoServicio = async (req, res) => {
   try {
-    const { Nombre } = req.body;
+    const { Nombre, Descripcion, Estado } = req.body;
 
     if (!Nombre) {
       return res.status(400).json({ message: "El nombre del tipo de servicio es obligatorio" });
     }
 
-    const nuevoTipoServicio = await TipoServicio.create({ Nombre });
+    const nuevoTipoServicio = await TipoServicio.create({ 
+      Nombre, 
+      Descripcion,
+      Estado: Estado !== undefined ? Estado : true
+    });
+    
     res.status(201).json({ message: "Tipo de servicio creado exitosamente", data: nuevoTipoServicio });
   } catch (error) {
     console.error(error);
@@ -51,7 +55,7 @@ exports.createTipoServicio = async (req, res) => {
 exports.updateTipoServicio = async (req, res) => {
   try {
     const { id } = req.params;
-    const { Nombre } = req.body;
+    const { Nombre, Descripcion, Estado } = req.body;
 
     const tipoServicio = await TipoServicio.findByPk(id);
 
@@ -59,7 +63,12 @@ exports.updateTipoServicio = async (req, res) => {
       return res.status(404).json({ message: "Tipo de servicio no encontrado" });
     }
 
-    await tipoServicio.update({ Nombre });
+    await tipoServicio.update({ 
+      Nombre: Nombre || tipoServicio.Nombre,
+      Descripcion: Descripcion !== undefined ? Descripcion : tipoServicio.Descripcion,
+      Estado: Estado !== undefined ? Estado : tipoServicio.Estado
+    });
+    
     res.status(200).json({ message: "Tipo de servicio actualizado exitosamente", data: tipoServicio });
   } catch (error) {
     console.error(error);

@@ -1,6 +1,4 @@
-const { DataTypes } = require("sequelize");
-
-module.exports = (sequelize) => {
+module.exports = (sequelize, DataTypes) => {
   const Venta = sequelize.define(
     "Venta",
     {
@@ -12,12 +10,10 @@ module.exports = (sequelize) => {
       IdCliente: {
         type: DataTypes.INTEGER,
         allowNull: false,
-        references: { model: "Clientes", key: "IdCliente" },
       },
       IdUsuario: {
         type: DataTypes.INTEGER,
         allowNull: false,
-        references: { model: "Usuarios", key: "IdUsuario" },
       },
       FechaVenta: {
         type: DataTypes.DATE,
@@ -36,33 +32,43 @@ module.exports = (sequelize) => {
         type: DataTypes.DECIMAL(10, 2),
         allowNull: false,
       },
+      NotasAdicionales: {
+        type: DataTypes.STRING(300),
+        allowNull: false,
+        defaultValue: "",
+      },
+      ComprobantePago: {
+        type: DataTypes.STRING(255),
+        allowNull: false,
+        defaultValue: "",
+      },
       Estado: {
         type: DataTypes.ENUM("Efectiva", "Pendiente", "Cancelada", "Devuelta"),
         allowNull: false,
         defaultValue: "Efectiva",
       },
+      Tipo: {
+        type: DataTypes.ENUM("Venta", "Devolucion"),
+        allowNull: false,
+        defaultValue: "Venta",
+      },
+      IdVentaOriginal: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+      },
     },
     {
       tableName: "Ventas",
       timestamps: false,
-    }
-  );
+    },
+  )
 
-  // Definir relaciones
   Venta.associate = (models) => {
-    Venta.hasMany(models.DetalleVenta, {
-      foreignKey: "IdVenta",
-      as: "DetallesVenta", // Verifica que el alias coincide en las consultas
-    });
-    Venta.belongsTo(models.Cliente, {
-      foreignKey: "IdCliente",
-      as: "Cliente",
-    });
-    Venta.belongsTo(models.Usuario, {
-      foreignKey: "IdUsuario",
-      as: "Usuario",
-    });
-  };
+    Venta.belongsTo(models.Cliente, { foreignKey: "IdCliente" })
+    Venta.belongsTo(models.Usuario, { foreignKey: "IdUsuario" })
+    Venta.hasMany(models.DetalleVenta, { as: "DetallesVenta", foreignKey: "IdVenta" })
+    Venta.hasMany(models.DetalleVentaServicio, { as: "DetallesVentaServicio", foreignKey: "IdVenta" })
+  }
+  return Venta
+}
 
-  return Venta;
-};

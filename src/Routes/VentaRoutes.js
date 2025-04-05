@@ -1,13 +1,17 @@
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const ventasController = require("../Controllers/VentaController");
+const ventaController = require('../Controllers/VentaController');
 
-// Definición de rutas
-router.get("/", ventasController.getAllVentas);
-router.get("/:id", ventasController.getVentaById);
-router.post("/", ventasController.createVenta);
-router.put("/:id", ventasController.updateVenta);
-router.put("/devolver/:id", ventasController.devolverVenta);
-router.put("/anular/:id", ventasController.anularVenta);
+// Rutas para ventas
+router.get('/', ventaController.getAllVentas);
+router.get('/por-fecha', ventaController.getVentasByFecha);
+router.get('/cliente/:clienteId', ventaController.getVentasByCliente);
+router.get('/usuario/:usuarioId', ventaController.getVentasByUsuario);
+router.get('/:id', ventaController.getVentaById);
+router.post('/', ventaController.createVenta);
+router.post('/:id/devolver', ventaController.devolverVenta); // Asegúrate de que sea POST, no GET
+router.patch('/:id/anular', ventaController.anularVenta);
+router.patch('/:id/estado', ventaController.updateVentaEstado);
+router.delete('/:id', ventaController.deleteVenta);
 
 module.exports = router;

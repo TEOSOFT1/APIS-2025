@@ -2,23 +2,11 @@ const express = require("express");
 const router = express.Router();
 const citaServicioController = require("../Controllers/CitaServicioController");
 
-// Verifica que todas las funciones están definidas antes de usarlas
-if (
-  !citaServicioController ||
-  !citaServicioController.getAllCitaServicios ||
-  !citaServicioController.getServiciosByCita ||
-  !citaServicioController.getCitasByServicio ||
-  !citaServicioController.addServicioToCita ||
-  !citaServicioController.removeServicioFromCita
-) {
-  throw new Error("Error: No se encontraron todas las funciones en CitaServicioController");
-}
-
-// Rutas
+// Rutas sin autenticación
 router.get("/", citaServicioController.getAllCitaServicios);
-router.get("/cita/:idCita", citaServicioController.getServiciosByCita);
-router.get("/servicio/:idServicio", citaServicioController.getCitasByServicio);
-router.post("/", citaServicioController.addServicioToCita);
-router.delete("/:id", citaServicioController.removeServicioFromCita);
+router.get("/:id", citaServicioController.getCitaServicioById);
+router.get("/cita/:citaId", citaServicioController.getServiciosByCita);
+router.post("/", citaServicioController.createCitaServicio);
+router.delete("/:id", citaServicioController.deleteCitaServicio);
 
 module.exports = router;

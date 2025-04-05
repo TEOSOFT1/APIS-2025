@@ -1,21 +1,14 @@
-const express = require("express")
-const router = express.Router()
-const detalleCompraController = require("../Controllers/DetalleCompraController")
+const express = require("express");
+const router = express.Router();
+const detalleCompraController = require("../Controllers/DetalleCompraController");
 
-// Ruta para verificar la estructura de la tabla
-router.get("/estructura", detalleCompraController.verificarEstructura)
+// Rutas sin autenticación
+router.get("/", detalleCompraController.getAllDetallesCompra);
+router.get("/:id", detalleCompraController.getDetalleCompraById);
+router.get("/compra/:compraId", detalleCompraController.getDetallesByCompra);
+router.get("/producto/:productoId", detalleCompraController.getDetallesByProducto);
+router.post("/", detalleCompraController.createDetalleCompra);
+router.put("/:id", detalleCompraController.updateDetalleCompra);
+router.delete("/:id", detalleCompraController.deleteDetalleCompra);
 
-// Ruta base para obtener todos los detalles de compras
-router.get("/", detalleCompraController.getAllDetalleCompras)
-
-// Obtener un detalle específico por su ID
-router.get("/:idDetalle", detalleCompraController.getDetalleById)
-
-// Rutas específicas
-router.get("/compra/:idCompra", detalleCompraController.getDetallesByCompra)
-router.post("/", detalleCompraController.addDetalleCompra)
-router.put("/:idDetalle", detalleCompraController.updateDetalleCompra)
-router.delete("/:idDetalle", detalleCompraController.deleteDetalleCompra)
-
-module.exports = router
-
+module.exports = router;

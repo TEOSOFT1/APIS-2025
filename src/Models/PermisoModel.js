@@ -13,6 +13,7 @@ module.exports = (sequelize, DataTypes) => {
       },
       Descripcion: {
         type: DataTypes.TEXT,
+        allowNull: true,
       },
       Estado: {
         type: DataTypes.BOOLEAN,
@@ -32,9 +33,7 @@ module.exports = (sequelize, DataTypes) => {
     },
     {
       tableName: "Permisos",
-      timestamps: true,
-      createdAt: "FechaCreacion",
-      updatedAt: "FechaActualizacion",
+      timestamps: false,
     }
   );
 

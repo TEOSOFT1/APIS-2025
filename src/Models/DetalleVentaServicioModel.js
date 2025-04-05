@@ -1,6 +1,4 @@
-const { DataTypes } = require("sequelize");
-
-module.exports = (sequelize) => {
+module.exports = (sequelize, DataTypes) => {
   const DetalleVentaServicio = sequelize.define(
     "DetalleVentaServicio",
     {
@@ -12,26 +10,14 @@ module.exports = (sequelize) => {
       IdServicio: {
         type: DataTypes.INTEGER,
         allowNull: false,
-        references: {
-          model: "Servicios",
-          key: "IdServicio",
-        },
       },
       IdVenta: {
         type: DataTypes.INTEGER,
         allowNull: false,
-        references: {
-          model: "Ventas",
-          key: "IdVenta",
-        },
       },
       IdMascota: {
         type: DataTypes.INTEGER,
         allowNull: false,
-        references: {
-          model: "Mascotas",
-          key: "IdMascota",
-        },
       },
       Cantidad: {
         type: DataTypes.INTEGER,
@@ -49,7 +35,7 @@ module.exports = (sequelize) => {
     {
       tableName: "DetalleVentasServicios",
       timestamps: false,
-    },
+    }
   );
 
   return DetalleVentaServicio;

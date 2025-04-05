@@ -1,12 +1,14 @@
 const express = require("express");
 const router = express.Router();
-const detalleVentaServicioController = require("../Controllers/DetalleVentaServicioController");
+const detalleVentaController = require("../Controllers/DetalleVentaController");
 
-router.get("/", detalleVentaServicioController.getAllDetallesVentaServicio);
-router.get("/venta/:id", detalleVentaServicioController.getDetallesVentaServicioByVenta);
-router.get("/:id", detalleVentaServicioController.getDetalleVentaServicioById);
-router.post("/", detalleVentaServicioController.addServicioToVenta);
-router.put("/:id", detalleVentaServicioController.updateDetalleVentaServicio);
-router.delete("/:id", detalleVentaServicioController.removeServicioFromVenta);
+// Rutas sin autenticación
+router.get("/", detalleVentaController.getAllDetallesVenta);
+router.get("/:id", detalleVentaController.getDetalleVentaById);
+router.get("/venta/:ventaId", detalleVentaController.getDetallesByVenta);
+router.get("/producto/:productoId", detalleVentaController.getDetallesByProducto);
+router.post("/", detalleVentaController.createDetalleVenta);
+router.put("/:id", detalleVentaController.updateDetalleVenta);
+router.delete("/:id", detalleVentaController.deleteDetalleVenta);
 
 module.exports = router;

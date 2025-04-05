@@ -1,253 +1,360 @@
 const db = require("../Config/db");
 const Compra = db.Compra;
-const DetalleCompra = db.DetalleCompra;
 const Proveedor = db.Proveedor;
+const DetalleCompra = db.DetalleCompra;
 const Producto = db.Producto;
-const { Op } = require("sequelize");
+const { Op } = db.Sequelize;
 
-// ✅ Obtener todas las compras
+// Obtener todas las compras
 exports.getAllCompras = async (req, res) => {
   try {
     const compras = await Compra.findAll({
-      include: [{ model: Proveedor, attributes: ["Nombre", "Telefono"] }],
-      order: [["FechaCompra", "DESC"]],
+      include: [
+        { model: Proveedor },
+        {
+          model: DetalleCompra,
+          include: [{ model: Producto }],
+        },
+      ],
     });
-    res.json(compras);
+    res.status(200).json(compras);
   } catch (error) {
-    console.error("❌ Error en getAllCompras:", error);
-    res.status(500).json({ message: "Error obteniendo compras", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al obtener las compras", error: error.message });
   }
 };
 
-// ✅ Obtener compras por proveedor
-exports.getComprasByProveedor = async (req, res) => {
-  try {
-    const { idProveedor } = req.params;
-    const compras = await Compra.findAll({
-      where: { IdProveedor: idProveedor },
-      include: [{ model: Proveedor, attributes: ["Nombre", "Telefono"] }],
-    });
-
-    if (!compras.length) {
-      return res.status(404).json({ message: "No hay compras para este proveedor" });
-    }
-    res.json(compras);
-  } catch (error) {
-    console.error("❌ Error en getComprasByProveedor:", error);
-    res.status(500).json({ message: "Error obteniendo compras del proveedor", error: error.message });
-  }
-};
-
-// ✅ Obtener compra por ID
+// Obtener una compra por ID
 exports.getCompraById = async (req, res) => {
   try {
     const { id } = req.params;
     const compra = await Compra.findByPk(id, {
-      include: [{ model: Proveedor, attributes: ["Nombre", "Telefono"] }],
+      include: [
+        { model: Proveedor },
+        {
+          model: DetalleCompra,
+          include: [{ model: Producto }],
+        },
+      ],
     });
 
     if (!compra) {
       return res.status(404).json({ message: "Compra no encontrada" });
     }
-    res.json(compra);
+
+    res.status(200).json(compra);
   } catch (error) {
-    console.error("❌ Error en getCompraById:", error);
-    res.status(500).json({ message: "Error obteniendo compra", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al obtener la compra", error: error.message });
   }
 };
 
-// ✅ Obtener detalles de una compra
-exports.getDetallesCompra = async (req, res) => {
+// Obtener compras por proveedor
+exports.getComprasByProveedor = async (req, res) => {
   try {
-    const { id } = req.params;
-    const detalles = await DetalleCompra.findAll({
-      where: { IdCompra: id },
-      include: [{ model: Producto, attributes: ["Nombre", "Precio"] }],
+    const { proveedorId } = req.params;
+    
+    // Verificar que el proveedor existe
+    const proveedorExiste = await Proveedor.findByPk(proveedorId);
+    if (!proveedorExiste) {
+      return res.status(404).json({ message: "Proveedor no encontrado" });
+    }
+    
+    const compras = await Compra.findAll({
+      where: { IdProveedor: proveedorId },
+      include: [
+        { model: Proveedor },
+        {
+          model: DetalleCompra,
+          include: [{ model: Producto }],
+        },
+      ],
     });
 
-    if (!detalles.length) {
-      return res.status(404).json({ message: "No hay detalles para esta compra" });
-    }
-    res.json(detalles);
+    res.status(200).json(compras);
   } catch (error) {
-    console.error("❌ Error en getDetallesCompra:", error);
-    res.status(500).json({ message: "Error obteniendo detalles de la compra", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al obtener las compras del proveedor", error: error.message });
   }
 };
 
-// ✅ Crear una nueva compra con transacción
-exports.createCompra = async (req, res) => {
-  const t = await db.sequelize.transaction();
-
+// Obtener compras por fecha
+// Corrección en CompraController.js
+exports.getComprasByFecha = async (req, res) => {
   try {
-    const { IdProveedor, FechaCompra, Detalles } = req.body;
-
-    if (!IdProveedor || !FechaCompra || !Detalles || !Array.isArray(Detalles) || Detalles.length === 0) {
-      return res.status(400).json({ message: "Datos incompletos para la compra" });
+    const { desde, hasta } = req.query;
+    
+    if (!desde || !hasta) {
+      return res.status(400).json({
+        success: false,
+        message: "Se requieren las fechas 'desde' y 'hasta'"
+      });
     }
 
-    const nuevaCompra = await Compra.create(
-      {
-        IdProveedor,
-        FechaCompra,
-        TotalMonto: 0,
-        TotalIva: 0,
-        TotalMontoConIva: 0,
-        Estado: "Efectiva",
-      },
-      { transaction: t }
-    );
+    const fechaDesde = new Date(desde);
+    const fechaHasta = new Date(hasta);
+    
+    // Ajustar fechaHasta para incluir todo el día
+    fechaHasta.setHours(23, 59, 59, 999);
 
+    if (isNaN(fechaDesde.getTime()) || isNaN(fechaHasta.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: "Formato de fecha inválido"
+      });
+    }
+
+    const compras = await Compra.findAll({
+      where: {
+        FechaCompra: {
+          [Op.between]: [fechaDesde, fechaHasta]
+        }
+      },
+      include: [
+        { model: Proveedor },
+        { 
+          model: DetalleCompra,
+          include: [{ model: Producto }]
+        }
+      ]
+    });
+
+    if (compras.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No se encontraron compras en el rango de fechas especificado"
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: compras
+    });
+  } catch (error) {
+    console.error("Error en getComprasByFecha:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error al obtener compras por fecha",
+      error: error.message
+    });
+  }
+};
+
+// Crear una nueva compra
+exports.createCompra = async (req, res) => {
+  try {
+    const { IdProveedor, FechaCompra, detalles } = req.body;
+
+    // Validar campos requeridos
+    if (!IdProveedor || !FechaCompra || !detalles || !detalles.length) {
+      return res.status(400).json({ message: "IdProveedor, FechaCompra y al menos un detalle son obligatorios" });
+    }
+
+    // Verificar que el proveedor existe
+    const proveedorExiste = await Proveedor.findByPk(IdProveedor);
+    if (!proveedorExiste) {
+      return res.status(404).json({ message: "Proveedor no encontrado" });
+    }
+
+    // Validar formato de fecha
+    const fechaCompra = new Date(FechaCompra);
+    if (isNaN(fechaCompra.getTime())) {
+      return res.status(400).json({ message: "La fecha de compra no es válida" });
+    }
+
+    // Validar detalles
+    for (const detalle of detalles) {
+      if (!detalle.IdProducto || !detalle.Cantidad || !detalle.PrecioUnitario) {
+        return res.status(400).json({ message: "Cada detalle debe tener IdProducto, Cantidad y PrecioUnitario" });
+      }
+
+      // Verificar que el producto existe
+      const productoExiste = await Producto.findByPk(detalle.IdProducto);
+      if (!productoExiste) {
+        return res.status(404).json({ message: `Producto con ID ${detalle.IdProducto} no encontrado` });
+      }
+
+      // Validar que la cantidad sea positiva
+      if (detalle.Cantidad <= 0) {
+        return res.status(400).json({ message: "La cantidad debe ser mayor que 0" });
+      }
+
+      // Validar que el precio unitario sea positivo
+      if (detalle.PrecioUnitario < 0) {
+        return res.status(400).json({ message: "El precio unitario no puede ser negativo" });
+      }
+    }
+
+    // Calcular totales iniciales
     let totalMonto = 0;
     let totalIva = 0;
+    let totalMontoConIva = 0;
 
-    await Promise.all(
-      Detalles.map(async (detalle) => {
-        const subtotal = detalle.Cantidad * detalle.PrecioUnitario;
-        const iva = subtotal * 0.19;
-        const subtotalConIva = subtotal + iva;
-
-        await DetalleCompra.create(
-          {
-            IdCompra: nuevaCompra.IdCompra,
-            IdProducto: detalle.IdProducto,
-            Cantidad: detalle.Cantidad,
-            PrecioUnitario: detalle.PrecioUnitario,
-            Subtotal: subtotal,
-            IvaUnitario: iva,
-            SubtotalConIva: subtotalConIva,
-          },
-          { transaction: t }
-        );
-
-        await Producto.increment(
-          { Stock: detalle.Cantidad },
-          { where: { IdProducto: detalle.IdProducto }, transaction: t }
-        );
-
-        totalMonto += subtotal;
-        totalIva += iva;
-      })
-    );
-
-    await nuevaCompra.update(
-      {
-        TotalMonto: totalMonto,
-        TotalIva: totalIva,
-        TotalMontoConIva: totalMonto + totalIva,
-      },
-      { transaction: t }
-    );
-
-    await t.commit();
-
-    res.status(201).json({
-      message: "Compra creada exitosamente",
-      compraId: nuevaCompra.IdCompra,
+    // Crear la compra
+    const nuevaCompra = await Compra.create({
+      IdProveedor,
+      FechaCompra: fechaCompra,
+      TotalMonto: totalMonto,
+      TotalIva: totalIva,
+      TotalMontoConIva: totalMontoConIva,
+      Estado: 'Efectiva',
     });
 
+    // Crear detalles de compra
+    for (const detalle of detalles) {
+      const producto = await Producto.findByPk(detalle.IdProducto);
+      
+      // Calcular subtotal
+      const subtotal = detalle.Cantidad * detalle.PrecioUnitario;
+      
+      // Calcular IVA unitario
+      const ivaUnitario = producto.AplicaIVA ? (detalle.PrecioUnitario * producto.PorcentajeIVA / 100) : 0;
+      
+      // Calcular subtotal con IVA
+      const subtotalConIva = subtotal + (subtotal * (producto.AplicaIVA ? producto.PorcentajeIVA / 100 : 0));
+      
+      await DetalleCompra.create({
+        IdCompra: nuevaCompra.IdCompra,
+        IdProducto: detalle.IdProducto,
+        Cantidad: detalle.Cantidad,
+        PrecioUnitario: detalle.PrecioUnitario,
+        Subtotal: subtotal,
+        IvaUnitario: ivaUnitario,
+        SubtotalConIva: subtotalConIva,
+      });
+      
+      // Actualizar stock del producto
+      await producto.update({
+        Stock: producto.Stock + detalle.Cantidad,
+      });
+      
+      // Actualizar totales
+      totalMonto += subtotal;
+      totalIva += (subtotal * (producto.AplicaIVA ? producto.PorcentajeIVA / 100 : 0));
+      totalMontoConIva += subtotalConIva;
+    }
+
+    // Actualizar totales en la compra
+    await nuevaCompra.update({
+      TotalMonto: totalMonto,
+      TotalIva: totalIva,
+      TotalMontoConIva: totalMontoConIva,
+    });
+
+    // Obtener la compra creada con sus relaciones
+    const compraCreada = await Compra.findByPk(nuevaCompra.IdCompra, {
+      include: [
+        { model: Proveedor },
+        {
+          model: DetalleCompra,
+          include: [{ model: Producto }],
+        },
+      ],
+    });
+
+    res.status(201).json({ message: "Compra creada exitosamente", data: compraCreada });
   } catch (error) {
-    await t.rollback();
-    console.error("❌ Error en createCompra:", error.message);
-    res.status(500).json({ message: "Error creando compra", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al crear la compra", error: error.message });
   }
 };
 
-// ✅ Cambiar estado de una compra (ANULAR)
-exports.updateEstadoCompra = async (req, res) => {
+// Actualizar el estado de una compra
+exports.updateCompraEstado = async (req, res) => {
   try {
     const { id } = req.params;
     const { Estado } = req.body;
 
-    const compra = await Compra.findByPk(id);
+    // Validar que el estado sea válido
+    if (!['Efectiva', 'Cancelada'].includes(Estado)) {
+      return res.status(400).json({ message: "El estado debe ser 'Efectiva' o 'Cancelada'" });
+    }
+
+    const compra = await Compra.findByPk(id, {
+      include: [{ model: DetalleCompra }],
+    });
+
     if (!compra) {
       return res.status(404).json({ message: "Compra no encontrada" });
     }
 
-    if (Estado === "Cancelada" && compra.Estado === "Efectiva") {
-      const detalles = await DetalleCompra.findAll({ where: { IdCompra: id } });
-
-      await Promise.all(
-        detalles.map(async (detalle) => {
-          await Producto.decrement("Stock", {
-            by: detalle.Cantidad,
-            where: { IdProducto: detalle.IdProducto },
-          });
-        })
-      );
+    // Si se está cancelando una compra efectiva, revertir el stock
+    if (compra.Estado === 'Efectiva' && Estado === 'Cancelada') {
+      for (const detalle of compra.DetalleCompras) {
+        const producto = await Producto.findByPk(detalle.IdProducto);
+        
+        // Revertir el stock
+        await producto.update({
+          Stock: Math.max(0, producto.Stock - detalle.Cantidad),
+        });
+      }
+    }
+    // Si se está reactivando una compra cancelada, aumentar el stock
+    else if (compra.Estado === 'Cancelada' && Estado === 'Efectiva') {
+      for (const detalle of compra.DetalleCompras) {
+        const producto = await Producto.findByPk(detalle.IdProducto);
+        
+        // Aumentar el stock
+        await producto.update({
+          Stock: producto.Stock + detalle.Cantidad,
+        });
+      }
     }
 
     await compra.update({ Estado });
 
-    res.json({ message: `Estado de la compra actualizado a '${Estado}' exitosamente` });
+    const compraActualizada = await Compra.findByPk(id, {
+      include: [
+        { model: Proveedor },
+        {
+          model: DetalleCompra,
+          include: [{ model: Producto }],
+        },
+      ],
+    });
 
+    res.status(200).json({ message: "Estado de compra actualizado exitosamente", data: compraActualizada });
   } catch (error) {
-    console.error("❌ Error en updateEstadoCompra:", error.message);
-    res.status(500).json({ message: "Error actualizando estado de la compra", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al actualizar el estado de la compra", error: error.message });
   }
 };
 
-// ✅ Actualizar una compra
-exports.updateCompra = async (req, res) => {
-  const t = await db.sequelize.transaction();
-
+// Eliminar una compra
+exports.deleteCompra = async (req, res) => {
   try {
     const { id } = req.params;
-    const { IdProveedor, FechaCompra, Detalles } = req.body;
+    const compra = await Compra.findByPk(id, {
+      include: [{ model: DetalleCompra }],
+    });
 
-    const compra = await Compra.findByPk(id);
     if (!compra) {
       return res.status(404).json({ message: "Compra no encontrada" });
     }
 
-    await compra.update({ IdProveedor, FechaCompra }, { transaction: t });
-
-    if (Detalles && Array.isArray(Detalles)) {
-      await DetalleCompra.destroy({ where: { IdCompra: id }, transaction: t });
-
-      let totalMonto = 0;
-      let totalIva = 0;
-
-      await Promise.all(
-        Detalles.map(async (detalle) => {
-          const subtotal = detalle.Cantidad * detalle.PrecioUnitario;
-          const iva = subtotal * 0.19;
-          const subtotalConIva = subtotal + iva;
-
-          await DetalleCompra.create(
-            {
-              IdCompra: id,
-              IdProducto: detalle.IdProducto,
-              Cantidad: detalle.Cantidad,
-              PrecioUnitario: detalle.PrecioUnitario,
-              Subtotal: subtotal,
-              IvaUnitario: iva,
-              SubtotalConIva: subtotalConIva,
-            },
-            { transaction: t }
-          );
-
-          totalMonto += subtotal;
-          totalIva += iva;
-        })
-      );
-
-      await compra.update(
-        {
-          TotalMonto: totalMonto,
-          TotalIva: totalIva,
-          TotalMontoConIva: totalMonto + totalIva,
-        },
-        { transaction: t }
-      );
+    // Si la compra es efectiva, revertir el stock
+    if (compra.Estado === 'Efectiva') {
+      for (const detalle of compra.DetalleCompras) {
+        const producto = await Producto.findByPk(detalle.IdProducto);
+        
+        // Revertir el stock
+        await producto.update({
+          Stock: Math.max(0, producto.Stock - detalle.Cantidad),
+        });
+      }
     }
 
-    await t.commit();
-    res.json({ message: "Compra actualizada exitosamente" });
+    // Eliminar los detalles de compra
+    await DetalleCompra.destroy({
+      where: { IdCompra: id },
+    });
 
+    // Eliminar la compra
+    await compra.destroy();
+
+    res.status(200).json({ message: "Compra eliminada exitosamente" });
   } catch (error) {
-    await t.rollback();
-    console.error("❌ Error en updateCompra:", error.message);
-    res.status(500).json({ message: "Error actualizando compra", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al eliminar la compra", error: error.message });
   }
 };

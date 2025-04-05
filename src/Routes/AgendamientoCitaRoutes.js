@@ -1,11 +1,16 @@
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const citaController = require("../Controllers/AgendamientoCitaController");
+const agendamientoCitaController = require('../Controllers/AgendamientoCitaController');
 
-router.get("/", citaController.getAllCitas);
-router.get("/:id", citaController.getCitaById);
-router.post("/", citaController.createCita);
-router.put("/:id", citaController.updateCita);
-router.delete("/:id", citaController.deleteCita);
+// Rutas para agendamiento de citas
+router.get('/', agendamientoCitaController.getAllCitas);
+router.get('/:id', agendamientoCitaController.getCitaById);
+router.get('/cliente/:clienteId', agendamientoCitaController.getCitasByCliente);
+router.get('/mascota/:mascotaId', agendamientoCitaController.getCitasByMascota);
+router.get('/por-fecha/:fecha', agendamientoCitaController.getCitasByFecha); // Nueva ruta para búsqueda por fecha
+router.post('/', agendamientoCitaController.createCita);
+router.put('/:id', agendamientoCitaController.updateCita);
+router.patch('/:id/estado', agendamientoCitaController.updateCitaStatus);
+router.delete('/:id', agendamientoCitaController.deleteCita);
 
 module.exports = router;

@@ -1,52 +1,80 @@
-const jwt = require("jsonwebtoken");
+// src/Middlewares/AuthMiddleware.js
+const jwt = require('jsonwebtoken');
+const db = require('../Config/db');
 
-// Middleware para verificar el token JWT
 exports.verifyToken = (req, res, next) => {
-  try {
-    // Obtener el token del header de autorización
-    const authHeader = req.headers["authorization"];
-    
-    if (!authHeader) {
-      return res.status(403).json({ message: "Token requerido" });
-    }
-    
-    // Eliminar el prefijo "Bearer " si existe
-    const token = authHeader.startsWith("Bearer ") 
-      ? authHeader.slice(7) 
-      : authHeader;
-    
-    if (!token) {
-      return res.status(403).json({ message: "Token requerido" });
-    }
-    
-    // Verificar el token
-    jwt.verify(token, process.env.JWT_SECRET || "secreto", (err, decoded) => {
-      if (err) {
-        console.error("Error al verificar token:", err);
-        return res.status(401).json({ message: "Token no válido" });
-      }
-      
-      // Guardar la información del usuario en el objeto request
-      req.user = decoded;
-      next();
+  console.log('Verificando token para ruta:', req.originalUrl);
+  
+  const authHeader = req.headers['authorization'];
+  if (!authHeader) {
+    console.log('No se proporcionó un token de autenticación');
+    return res.status(401).json({
+      success: false,
+      message: 'No se proporcionó un token de autenticación'
     });
+  }
+  
+  const parts = authHeader.split(' ');
+  if (parts.length !== 2 || parts[0] !== 'Bearer') {
+    console.log('Formato de token inválido');
+    return res.status(401).json({
+      success: false,
+      message: 'Formato de token inválido'
+    });
+  }
+  
+  const token = parts[1];
+  
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "TeoSoft2024SecretKey!@#$");
+    req.user = decoded;
+    console.log('Token válido para usuario:', decoded.id, 'con rol:', decoded.rol);
+    next();
   } catch (error) {
-    console.error("Error en middleware de autenticación:", error);
-    return res.status(500).json({ message: "Error en la autenticación" });
+    console.log('Token inválido:', error.message);
+    return res.status(401).json({
+      success: false,
+      message: 'Token inválido'
+    });
   }
 };
 
-// Middleware para verificar el rol del usuario
 exports.checkRole = (roles) => {
-  return (req, res, next) => {
+  return async (req, res, next) => {
     if (!req.user) {
-      return res.status(403).json({ message: "Usuario no autenticado" });
+      return res.status(401).json({
+        success: false,
+        message: 'No autenticado'
+      });
     }
     
-    if (!roles.includes(req.user.rol)) {
-      return res.status(403).json({ message: "Acceso denegado" });
-    }
+    const userRole = req.user.rol;
     
-    next();
+    try {
+      // Buscar el rol por ID
+      const rol = await db.Rol.findByPk(userRole);
+      
+      if (!rol) {
+        return res.status(403).json({
+          success: false,
+          message: 'Rol no encontrado'
+        });
+      }
+      
+      if (roles.includes(rol.NombreRol)) {
+        next();
+      } else {
+        return res.status(403).json({
+          success: false,
+          message: 'No tienes permiso para acceder a este recurso'
+        });
+      }
+    } catch (error) {
+      console.error('Error al verificar rol:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Error al verificar permisos'
+      });
+    }
   };
 };

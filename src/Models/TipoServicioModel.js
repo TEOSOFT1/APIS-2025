@@ -23,7 +23,7 @@ module.exports = (sequelize, DataTypes) => {
       },
     },
     {
-      tableName: "TipoServicios", // 🔥 Nombre correcto
+      tableName: "Tipo_Servicio",
       timestamps: false,
     }
   );
