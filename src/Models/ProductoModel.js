@@ -23,6 +23,16 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.TEXT,
         allowNull: true,
       },
+      Caracteristicas: {
+        type: DataTypes.STRING(300),
+        allowNull: false,
+        defaultValue: '',
+      },
+      Especificaciones: {
+        type: DataTypes.STRING(300),
+        allowNull: false,
+        defaultValue: '',
+      },
       Stock: {
         type: DataTypes.INTEGER,
         allowNull: false,

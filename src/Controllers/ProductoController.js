@@ -49,6 +49,8 @@ exports.searchProductos = async (req, res) => {
         [Op.or]: [
           { NombreProducto: { [Op.like]: `%${query}%` } },
           { Descripcion: { [Op.like]: `%${query}%` } },
+          { Caracteristicas: { [Op.like]: `%${query}%` } },
+          { Especificaciones: { [Op.like]: `%${query}%` } },
           { CodigoBarras: { [Op.like]: `%${query}%` } },
           { Referencia: { [Op.like]: `%${query}%` } },
         ],
@@ -71,6 +73,8 @@ exports.createProducto = async (req, res) => {
       NombreProducto,
       Foto,
       Descripcion,
+      Caracteristicas,
+      Especificaciones,
       Stock,
       Precio,
       AplicaIVA,
@@ -139,6 +143,8 @@ exports.createProducto = async (req, res) => {
       NombreProducto,
       Foto,
       Descripcion,
+      Caracteristicas: Caracteristicas || '',
+      Especificaciones: Especificaciones || '',
       Stock: Stock !== undefined ? Stock : 0,
       Precio,
       AplicaIVA: AplicaIVA !== undefined ? AplicaIVA : false,
@@ -169,6 +175,8 @@ exports.updateProducto = async (req, res) => {
       NombreProducto,
       Foto,
       Descripcion,
+      Caracteristicas,
+      Especificaciones,
       Stock,
       Precio,
       AplicaIVA,
@@ -236,6 +244,8 @@ exports.updateProducto = async (req, res) => {
       NombreProducto: NombreProducto || producto.NombreProducto,
       Foto: Foto !== undefined ? Foto : producto.Foto,
       Descripcion: Descripcion !== undefined ? Descripcion : producto.Descripcion,
+      Caracteristicas: Caracteristicas !== undefined ? Caracteristicas : producto.Caracteristicas,
+      Especificaciones: Especificaciones !== undefined ? Especificaciones : producto.Especificaciones,
       Stock: Stock !== undefined ? Stock : producto.Stock,
       Precio: Precio || producto.Precio,
       AplicaIVA: AplicaIVA !== undefined ? AplicaIVA : producto.AplicaIVA,
@@ -300,11 +310,10 @@ exports.toggleProductoStatus = async (req, res) => {
 };
 
 // Actualizar stock de un producto
-// Corrección en ProductoController.js
 exports.updateStock = async (req, res) => {
   try {
     const { id } = req.params;
-    const { Stock } = req.body; // Cambia "cantidad" por "Stock" para coincidir con el modelo
+    const { Stock } = req.body;
 
     if (Stock === undefined) {
       return res.status(400).json({
